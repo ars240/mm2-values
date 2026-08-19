@@ -1,0 +1,366 @@
+local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+local function getMousePos()
+    local ok, m = pcall(function()
+        return LocalPlayer:GetMouse()
+    end)
+    if ok and m then
+        return Vector2.new(m.X, m.Y)
+    end
+    return Vector2.new(0, 0)
+end
+
+local Camera = workspace.CurrentCamera
+local ScreenSize = Camera.ViewportSize
+local CenterX = ScreenSize.X / 2
+local CenterY = ScreenSize.Y / 2
+
+local Drawings = {}
+
+local fontMain = 0
+if Drawing and Drawing.Fonts then
+    pcall(function()
+        fontMain = Drawing.Fonts.ProximaSoftBold or Drawing.Fonts.Proxima or Drawing.Fonts.UI or 0
+    end)
+end
+
+local function createSquare(size, pos, color, filled, corner, thickness)
+    local sq = Drawing.new("Square")
+    sq.Size = size
+    sq.Position = pos
+    sq.Color = color
+    sq.Filled = filled
+    sq.Thickness = thickness or 1
+    if corner then
+        pcall(function() sq.Corner = corner end)
+    end
+    sq.Visible = true
+    table.insert(Drawings, sq)
+    return sq
+end
+
+local function createLine(from, to, color, thickness)
+    local ln = Drawing.new("Line")
+    ln.From = from
+    ln.To = to
+    ln.Color = color
+    ln.Thickness = thickness or 1
+    ln.Visible = true
+    table.insert(Drawings, ln)
+    return ln
+end
+
+local function createText(text, pos, size, color, center, font)
+    local t = Drawing.new("Text")
+    t.Text = text
+    t.Position = pos
+    t.Size = size
+    t.Color = color
+    t.Center = center or false
+    t.Outline = true
+    t.Visible = true
+    t.Font = font or fontMain
+    table.insert(Drawings, t)
+    return t
+end
+
+local width = 360
+local height = 210
+local x = CenterX - (width / 2)
+local y = CenterY - (height / 2)
+
+local function createGlowLayer(offset, color, trans)
+    local sq = createSquare(Vector2.new(width + (offset * 2), height + (offset * 2)), Vector2.new(x - offset, y - offset), color, true, 12 + math.floor(offset / 2))
+    pcall(function() sq.Transparency = trans end)
+    return sq
+end
+
+local glow1 = createGlowLayer(10, Color3.fromRGB(25, 30, 45), 0.12)
+local glow2 = createGlowLayer(8, Color3.fromRGB(35, 42, 60), 0.20)
+local glow3 = createGlowLayer(6, Color3.fromRGB(50, 60, 85), 0.32)
+local glow4 = createGlowLayer(4, Color3.fromRGB(70, 84, 115), 0.48)
+local glow5 = createGlowLayer(2, Color3.fromRGB(95, 112, 150), 0.70)
+
+local mainBg = createSquare(Vector2.new(width, height), Vector2.new(x, y), Color3.fromRGB(11, 11, 14), true, 12)
+local mainBorder = createSquare(Vector2.new(width, height), Vector2.new(x, y), Color3.fromRGB(60, 60, 80), false, 12)
+
+local titleText = createText("256HUB", Vector2.new(x + 20, y + 15), 18, Color3.fromRGB(255, 255, 255), false, fontMain)
+local subText = createText("Select Mode", Vector2.new(x + 95, y + 18), 12, Color3.fromRGB(140, 140, 155), false, fontMain)
+local closeText = createText("X", Vector2.new(x + width - 24, y + 16), 15, Color3.fromRGB(160, 160, 175), false, fontMain)
+
+local lineAccent = createLine(Vector2.new(x + 20, y + 46), Vector2.new(x + width - 20, y + 46), Color3.fromRGB(40, 40, 50), 1)
+
+local bw = width - 40
+local bh = 60
+
+local hX = x + 20
+local hY = y + 60
+local hBg = createSquare(Vector2.new(bw, bh), Vector2.new(hX, hY), Color3.fromRGB(20, 20, 26), true, 8)
+local hBorder = createSquare(Vector2.new(bw, bh), Vector2.new(hX, hY), Color3.fromRGB(44, 44, 56), false, 8)
+local hTitle = createText("Hybrid Mode (Recommended)", Vector2.new(hX + 18, hY + 12), 15, Color3.fromRGB(255, 255, 255), false, fontMain)
+local hDesc = createText("Fast remote execution mode", Vector2.new(hX + 18, hY + 34), 12, Color3.fromRGB(140, 140, 155), false, fontMain)
+
+local nX = x + 20
+local nY = y + 130
+local nBg = createSquare(Vector2.new(bw, bh), Vector2.new(nX, nY), Color3.fromRGB(20, 20, 26), true, 8)
+local nBorder = createSquare(Vector2.new(bw, bh), Vector2.new(nX, nY), Color3.fromRGB(44, 44, 56), false, 8)
+local nTitle = createText("Normal Mode", Vector2.new(nX + 18, nY + 12), 15, Color3.fromRGB(255, 255, 255), false, fontMain)
+local nDesc = createText("Safe client execution mode", Vector2.new(nX + 18, nY + 34), 12, Color3.fromRGB(140, 140, 155), false, fontMain)
+
+local function isHovering(mx, my, bx, by, bWidth, bHeight)
+    return mx >= bx and mx <= bx + bWidth and my >= by and my <= by + bHeight
+end
+
+local connection
+local clickConnection
+local mouseConnection
+local running = true
+
+local function hideAll()
+    running = false
+    if connection then pcall(function() connection:Disconnect() end) end
+    if clickConnection then pcall(function() clickConnection:Disconnect() end) end
+    if mouseConnection then pcall(function() mouseConnection:Disconnect() end) end
+    for _, d in pairs(Drawings) do
+        pcall(function() d.Visible = false end)
+    end
+end
+
+local function deferredDestroy()
+    local toDestroy = Drawings
+    Drawings = {}
+    task.delay(0.2, function()
+        for _, d in pairs(toDestroy) do
+            pcall(function() d:Remove() end)
+        end
+    end)
+end
+
+local function closeUI()
+    hideAll()
+    deferredDestroy()
+end
+
+local function showSplashAndLoad(url)
+    hideAll()
+    deferredDestroy()
+    
+    local splashDrawings = {}
+    local function createSplashText(text, pos, size, color, center, font)
+        local t = Drawing.new("Text")
+        t.Text = text
+        t.Position = pos
+        t.Size = size
+        t.Color = color
+        t.Center = center or false
+        t.Outline = true
+        t.Visible = true
+        t.Font = font or fontMain
+        table.insert(splashDrawings, t)
+        return t
+    end
+    
+    local function createSplashSquare(size, pos, color, filled, corner)
+        local sq = Drawing.new("Square")
+        sq.Size = size
+        sq.Position = pos
+        sq.Color = color
+        sq.Filled = filled
+        sq.Thickness = 1
+        if corner then pcall(function() sq.Corner = corner end) end
+        sq.Visible = true
+        table.insert(splashDrawings, sq)
+        return sq
+    end
+    
+    local bgOverlay = createSplashSquare(ScreenSize, Vector2.new(0, 0), Color3.fromRGB(5, 5, 8), true, 0)
+    pcall(function() bgOverlay.Transparency = 0.70 end)
+    
+    local imageLoaded = false
+    pcall(function()
+        local imgW = 540
+        local imgH = 303
+        local img = Drawing.new("Image")
+        img.Size = Vector2.new(imgW, imgH)
+        img.Position = Vector2.new(CenterX - (imgW / 2), CenterY - 180)
+        img.Data = game:HttpGet("https://raw.githubusercontent.com/ars240/mm2-values/main/logo1.png")
+        img.Visible = true
+        table.insert(splashDrawings, img)
+        imageLoaded = true
+    end)
+    
+    if not imageLoaded then
+        createSplashText("256HUB", Vector2.new(CenterX, CenterY - 26), 30, Color3.fromRGB(40, 40, 60), true)
+        createSplashText("256HUB", Vector2.new(CenterX, CenterY - 26), 28, Color3.fromRGB(110, 110, 150), true)
+        createSplashText("256HUB", Vector2.new(CenterX, CenterY - 26), 26, Color3.fromRGB(255, 255, 255), true)
+    end
+    
+    local barW = 260
+    local barH = 5
+    local barX = CenterX - (barW / 2)
+    local barY = CenterY + 140
+    
+    local barBg = createSplashSquare(Vector2.new(barW, barH), Vector2.new(barX, barY), Color3.fromRGB(25, 25, 35), true, 3)
+    local barFill = createSplashSquare(Vector2.new(0, barH), Vector2.new(barX, barY), Color3.fromRGB(255, 255, 255), true, 3)
+    
+    local sSub = createSplashText("Initializing core modules...", Vector2.new(CenterX, CenterY + 155), 13, Color3.fromRGB(170, 170, 185), true)
+    local percentText = createSplashText("0%", Vector2.new(barX + barW + 16, barY - 4), 12, Color3.fromRGB(200, 200, 220), false)
+    
+    local fetchedScript = nil
+    task.spawn(function()
+        pcall(function()
+            fetchedScript = game:HttpGet(url)
+        end)
+    end)
+    
+    task.spawn(function()
+        local duration = 2.2
+        local start = tick()
+        
+        while true do
+            local elapsed = tick() - start
+            local p = math.clamp(elapsed / duration, 0, 1)
+            
+            barFill.Size = Vector2.new(math.floor(barW * p), barH)
+            percentText.Text = tostring(math.floor(p * 100)) .. "%"
+            
+            if p < 0.15 then
+                sSub.Text = "Initializing core modules..."
+            elseif p < 0.30 then
+                sSub.Text = "Scraping MM2 item values & API..."
+            elseif p < 0.45 then
+                sSub.Text = "Loading Auto Farm & Coin Grabber..."
+            elseif p < 0.60 then
+                sSub.Text = "Loading Silent Aimbot & Gun Hook..."
+            elseif p < 0.75 then
+                sSub.Text = "Injecting ESP & Player Highlights..."
+            elseif p < 0.90 then
+                sSub.Text = "Connecting to 256HUB Remote API..."
+            elseif p < 1.0 then
+                sSub.Text = "Bypassing Security & Finalizing UI..."
+            else
+                sSub.Text = "Ready!"
+            end
+            
+            if p >= 1 then break end
+            task.wait(0.02)
+        end
+        
+        task.wait(0.1)
+        
+        for _, d in pairs(splashDrawings) do
+            pcall(function() d.Visible = false end)
+            pcall(function() d:Remove() end)
+        end
+        splashDrawings = {}
+        
+        task.wait(0.05)
+        
+        if fetchedScript then
+            pcall(function()
+                loadstring(fetchedScript)()
+            end)
+        else
+            pcall(function()
+                loadstring(game:HttpGet(url))()
+            end)
+        end
+    end)
+end
+
+local function executeMode(url)
+    if not running then return end
+    showSplashAndLoad(url)
+end
+
+local function checkClick(mx, my)
+    if not running then return false end
+    if type(isrbxactive) == "function" then
+        local active = true
+        pcall(function() active = isrbxactive() end)
+        if not active then return false end
+    end
+    if not mx or not my then
+        local mLoc = getMousePos()
+        mx, my = mLoc.X, mLoc.Y
+    end
+    
+    if isHovering(mx, my, x + width - 35, y + 10, 25, 25) then
+        closeUI()
+        return true
+    elseif isHovering(mx, my, hX, hY, bw, bh) then
+        executeMode("https://raw.githubusercontent.com/ars240/mm2-values/refs/heads/main/hybrid")
+        return true
+    elseif isHovering(mx, my, nX, nY, bw, bh) then
+        executeMode("https://raw.githubusercontent.com/ars240/mm2-values/refs/heads/main/normal")
+        return true
+    end
+    return false
+end
+
+local wasMouseDown = false
+
+connection = RunService.RenderStepped:Connect(function()
+    if not running then return end
+    if type(isrbxactive) == "function" then
+        local active = true
+        pcall(function() active = isrbxactive() end)
+        if not active then return end
+    end
+    
+    local mLoc = getMousePos()
+    local mx, my = mLoc.X, mLoc.Y
+    
+    local isDown = false
+    if type(ismouse1pressed) == "function" then
+        pcall(function() isDown = ismouse1pressed() end)
+    end
+    if not isDown then
+        pcall(function() isDown = UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) end)
+    end
+    
+    if isDown and not wasMouseDown then
+        wasMouseDown = true
+        checkClick(mx, my)
+    elseif not isDown then
+        wasMouseDown = false
+    end
+    
+    if isHovering(mx, my, x + width - 35, y + 10, 25, 25) then
+        closeText.Color = Color3.fromRGB(255, 80, 80)
+    else
+        closeText.Color = Color3.fromRGB(160, 160, 175)
+    end
+    
+    if isHovering(mx, my, hX, hY, bw, bh) then
+        hBg.Color = Color3.fromRGB(32, 32, 42)
+        hBorder.Color = Color3.fromRGB(255, 255, 255)
+    else
+        hBg.Color = Color3.fromRGB(20, 20, 26)
+        hBorder.Color = Color3.fromRGB(44, 44, 56)
+    end
+    
+    if isHovering(mx, my, nX, nY, bw, bh) then
+        nBg.Color = Color3.fromRGB(32, 32, 42)
+        nBorder.Color = Color3.fromRGB(255, 255, 255)
+    else
+        nBg.Color = Color3.fromRGB(20, 20, 26)
+        nBorder.Color = Color3.fromRGB(44, 44, 56)
+    end
+end)
+
+clickConnection = UIS.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        checkClick()
+    end
+end)
+
+pcall(function()
+    local mouse = LocalPlayer:GetMouse()
+    mouseConnection = mouse.Button1Down:Connect(function()
+        checkClick()
+    end)
+end)
