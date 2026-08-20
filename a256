@@ -107,7 +107,7 @@ local nX = x + 20
 local nY = y + 130
 local nBg = createSquare(Vector2.new(bw, bh), Vector2.new(nX, nY), Color3.fromRGB(20, 20, 26), true, 8)
 local nBorder = createSquare(Vector2.new(bw, bh), Vector2.new(nX, nY), Color3.fromRGB(44, 44, 56), false, 8)
-local nTitle = createText("Normal Mode", Vector2.new(nX + 18, nY + 12), 15, Color3.fromRGB(255, 255, 255), false, fontMain)
+local nTitle = createText("Normal Mode (ASS)", Vector2.new(nX + 18, nY + 12), 15, Color3.fromRGB(255, 255, 255), false, fontMain)
 local nDesc = createText("Safe client execution mode", Vector2.new(nX + 18, nY + 34), 12, Color3.fromRGB(140, 140, 155), false, fontMain)
 
 local function isHovering(mx, my, bx, by, bWidth, bHeight)
